@@ -3,16 +3,15 @@
 #include <esat/input.h>
 #include <esat/window.h>
 
-#include <esat_extra/imgui.h>
-
 #include <amath_core.h>
-#include <amath_utils.h>
 
 #include <vector>
 #include <string>
 #include <iostream>
 
 #include "fuake_objloader.hpp"
+#include "fuake_mesh.hpp"
+#include "fuake_render.hpp"
 
 // #include <algorithm>
 
@@ -40,97 +39,101 @@ Mat4 generate_transform(Vec3 translate = {0, 0, 0}, Vec3 scale = {1, 1, 1}, Vec3
 int esat::main(int argc, char **argv) {
    using namespace esat;
 
-   WindowInit(800, 600);
+   Vec2 window_dims = {1600, 1200};
+   WindowInit(window_dims.x(), window_dims.y());
    WindowSetMouseVisibility(true);
 
    Mesh mesh = read_obj("assets/monkey.obj");
+   triangulate(mesh);
 
-   // rapidobj::Triangulate(monkey);
+   //* Graphics settings
+   float fov = PI / 2;
+   float aspect = 1;
+   float zNear = 0;
+   float zFar = 1000;
 
-   auto &indices = mesh.indices;
-   auto &num_vertices = mesh.num_vertices;
-   auto &vertices = mesh.vertices;
+   //* Controls
+   float y_rot = 0;
+   float x_rot = 0;
+   float zoom = 300;
+   float wheel_x = esat::MouseWheelY();
+   float mouse_x = esat::MousePositionX();
+   float mouse_y = esat::MousePositionY();
 
-   // Reserve space for edges
-   size_t total_edges = 0;
-   for (auto n : num_vertices) total_edges += n;
-   vector<Vec4> monkey_edges;
-   monkey_edges.reserve(total_edges);
+   Vec4 cam_dir = {0, 0, 1, 0};
+   Vec4 cam_pos = {0, 0, 0, 1};
 
-   size_t offset = 0, idx_first, idx_second;
-   for (size_t n : num_vertices) {
-      for (int i = 0; i < n; i++) {
-
-         idx_first = 3 * indices[offset + i];
-         idx_second = 3 * indices[offset + ((i + 1) % n)];
-
-         monkey_edges.push_back(
-             Vec4{vertices[idx_first], vertices[idx_first + 1], vertices[idx_first + 2], 1});
-         monkey_edges.push_back(
-             Vec4{vertices[idx_second], vertices[idx_second + 1], vertices[idx_second + 2], 1});
-      }
-      offset += n;
-   }
-   vector<float> point_z(total_edges * 2);
-   vector<float> edge_z(total_edges);
-   vector<float> edge_z_sorted(total_edges);
+   float speed = 0.1;
+   float mouse_sensitivity = 0.01;
+   float cam_sensitivity = 2.5;
 
    double last_draw = 0;
    while (WindowIsOpened() && !IsSpecialKeyDown(kSpecialKey_Escape)) {
 
-      float mouse_x = MousePositionX();
-      float mouse_y = MousePositionY();
+      //* Input
+      if (esat::IsSpecialKeyPressed(kSpecialKey_Right)) y_rot += 0.025;
+      if (esat::IsSpecialKeyPressed(kSpecialKey_Left)) y_rot -= 0.025;
+      if (esat::IsSpecialKeyPressed(kSpecialKey_Up)) x_rot += 0.025;
+      if (esat::IsSpecialKeyPressed(kSpecialKey_Down)) x_rot -= 0.025;
 
-      float z_pos = 10;
+      zoom += 25 * (esat::MouseWheelY() - wheel_x);
+      wheel_x = esat::MouseWheelY();
 
-      Mat4 model = generate_transform(
-          {z_pos * (mouse_x - 400) / 800.f, z_pos * (mouse_y - 300) / 600.f, z_pos},
-          {2, 2, 2},
-          {0, (float)(PI + Time() / 500), PI});
+      float cam_x_rot = 0, cam_y_rot = 0;
+      // Camera controls
+      if (esat::IsSpecialKeyPressed(kSpecialKey_Alt)) {
+         if (esat::IsKeyPressed('W')) cam_x_rot = -cam_sensitivity;
+         if (esat::IsKeyPressed('S')) cam_x_rot = cam_sensitivity;
+         if (esat::IsKeyPressed('D')) cam_y_rot = -cam_sensitivity;
+         if (esat::IsKeyPressed('A')) cam_y_rot = cam_sensitivity;
 
-      Mat4 m = Mat4::identity();
-      m = mat_mul(model, m);
-      m = mat_mul(Mat4::perspective(PI / 2, 800.f / 600.f), m);
-      m = mat_mul(Mat4::scaling(300, 300, 1), m);
-      m = mat_mul(Mat4::translation(mouse_x, mouse_y, 0), m);
+      } else {
+         if (esat::IsKeyPressed('W')) cam_pos.z() += speed;
+         if (esat::IsKeyPressed('S')) cam_pos.z() -= speed;
+         if (esat::IsKeyPressed('D')) cam_pos.x() += speed;
+         if (esat::IsKeyPressed('A')) cam_pos.x() -= speed;
+      }
+
+      cam_dir = mat_mul(Mat4::rotationY(cam_y_rot * mouse_sensitivity / 2 / PI), cam_dir);
+      cam_dir = mat_mul(Mat4::rotationX(cam_x_rot * mouse_sensitivity / 2 / PI), cam_dir);
+
+      float mouse_x_delta = (esat::MousePositionX() - mouse_x);
+      float mouse_y_delta = (esat::MousePositionY() - mouse_y);
+
+      // Mouse camera controls
+      // cam_dir = mat_mul(Mat4::rotationY(-mouse_x_delta * mouse_sensitivity / 2 / PI), cam_dir);
+      // cam_dir = mat_mul(Mat4::rotationX(mouse_y_delta * mouse_sensitivity / 2 / PI), cam_dir);
+      // mouse_x = MousePositionX();
+      // mouse_y = MousePositionY();
+
+      // float mouse_x_rel = (mouse_x - 400) / 800.f;
+      // float mouse_y_rel = (mouse_y - 300) / 600.f;
+
+      //* Render
+      Vec4 light_dir = {1, -1, -1, 0};
+      light_dir = light_dir.normalized();
+
+      float z = 20;
+
+      // Mat4 model = generate_transform(
+      //     {z * mouse_x_rel, z * mouse_y_rel, z}, {5, 5, 5}, {0, (float)(PI + Time() / 500), PI});
+      Mat4 model = generate_transform({0, 0, z}, {5, 5, 5}, {x_rot, y_rot, 0});
+      Mat4 view = get_view_matrix(cam_dir, cam_pos);
+      Mat4 persp = Mat4::perspective(fov, aspect, zNear, zFar);
+      Mat4 viewport = generate_transform(
+          {window_dims.x() / 2, window_dims.y() / 2, 0}, {zoom, zoom, 1}, {0, 0, 0});
+
+      Mat4 tr = Mat4::identity();
+      tr = mat_mul(model, tr);
+      tr = mat_mul(view, tr);
+      tr = mat_mul(persp, tr);
+      tr = mat_mul(viewport, tr);
 
       DrawBegin();
       DrawClear(0, 0, 0);
 
-      vector<Vec4> transformed_edges;
-      for (size_t i = 0; i < monkey_edges.size(); i++) {
-         Vec4 transformed_pt = mat_mul(m, monkey_edges[i]);
-         point_z[i] = fabs(transformed_pt.z());
-         float d = 1.f / transformed_pt.w();
-         transformed_edges.push_back(transformed_pt * d);
-      }
-
-      float min_z = 99999999999, max_z = 0;
-      for (int i = 0; i < monkey_edges.size() / 2; i++) {
-         float z = (point_z[2 * i] + point_z[2 * i + 1]) / 2;
-         if (z < min_z) min_z = z;
-         if (z > max_z) max_z = z;
-         edge_z[i] = z;
-      }
-
-      vector<size_t> sort_indices = argsort(edge_z, true);
-      vector<Vec4> sorted_edges(transformed_edges.size());
-      for (int i = 0; i < edge_z.size(); i++) {
-         sorted_edges[2 * i] = transformed_edges[sort_indices[i] * 2];
-         sorted_edges[2 * i + 1] = transformed_edges[sort_indices[i] * 2 + 1];
-         edge_z_sorted[i] = edge_z[sort_indices[i]];
-      }
-
-      for (int i = 0; i < sorted_edges.size() / 2; i++) {
-
-         Vec4 &edge1 = sorted_edges[2 * i];
-         Vec4 &edge2 = sorted_edges[2 * i + 1];
-
-         float b = (max_z - edge_z_sorted[i]) / (max_z - min_z);
-         DrawSetStrokeColor(255 * b, 255 * b, 255 * b);
-
-         DrawLine(edge1.x(), edge1.y(), edge2.x(), edge2.y());
-      }
+      // draw_mesh_edges(mesh, tr);
+      draw_mesh_faces(mesh, tr, model, light_dir, cam_pos);
 
       DrawEnd();
 

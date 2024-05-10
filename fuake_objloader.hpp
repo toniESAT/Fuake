@@ -5,16 +5,11 @@
 #include <fstream>
 #include <sstream>
 
+#include "fuake_mesh.hpp"
+
 using namespace std;
 
 namespace fuake {
-
-struct Mesh final {
-   string name;
-   vector<float> vertices;       // Vertex opsitions
-   vector<size_t> indices;       // Vertex indeces
-   vector<uint8_t> num_vertices; // Num of vertices per face
-};
 
 enum ObjToken {
    kToken_Unknown,        // for not recognized tokens
