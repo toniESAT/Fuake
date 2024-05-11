@@ -48,9 +48,9 @@ int esat::main(int argc, char **argv) {
 
    //* Graphics settings
    float fov = PI / 2;
-   float aspect = 1;
-   float zNear = 0;
-   float zFar = 1000;
+   float aspect = 1600.f / 1200;
+   float zNear = 0.5f;
+   float zFar = 100.f;
 
    //* Controls
    float y_rot = 0;
@@ -65,75 +65,52 @@ int esat::main(int argc, char **argv) {
 
    float speed = 0.1;
    float mouse_sensitivity = 0.01;
-   float cam_sensitivity = 2.5;
+   float cam_sensitivity = 10;
 
    double last_draw = 0;
    while (WindowIsOpened() && !IsSpecialKeyDown(kSpecialKey_Escape)) {
 
       //* Input
-      if (esat::IsSpecialKeyPressed(kSpecialKey_Right)) y_rot += 0.025;
-      if (esat::IsSpecialKeyPressed(kSpecialKey_Left)) y_rot -= 0.025;
-      if (esat::IsSpecialKeyPressed(kSpecialKey_Up)) x_rot += 0.025;
-      if (esat::IsSpecialKeyPressed(kSpecialKey_Down)) x_rot -= 0.025;
 
+      // Camera controls
       zoom += 25 * (esat::MouseWheelY() - wheel_x);
       wheel_x = esat::MouseWheelY();
 
       float cam_x_rot = 0, cam_y_rot = 0;
-      // Camera controls
-      if (esat::IsSpecialKeyPressed(kSpecialKey_Alt)) {
-         if (esat::IsKeyPressed('W')) cam_x_rot = -cam_sensitivity;
-         if (esat::IsKeyPressed('S')) cam_x_rot = cam_sensitivity;
-         if (esat::IsKeyPressed('D')) cam_y_rot = -cam_sensitivity;
-         if (esat::IsKeyPressed('A')) cam_y_rot = cam_sensitivity;
-
-      } else {
-         if (esat::IsKeyPressed('W')) cam_pos.z() += speed;
-         if (esat::IsKeyPressed('S')) cam_pos.z() -= speed;
-         if (esat::IsKeyPressed('D')) cam_pos.x() += speed;
-         if (esat::IsKeyPressed('A')) cam_pos.x() -= speed;
-      }
+      if (esat::IsSpecialKeyPressed(kSpecialKey_Up)) cam_x_rot = -cam_sensitivity;
+      if (esat::IsSpecialKeyPressed(kSpecialKey_Down)) cam_x_rot = cam_sensitivity;
+      if (esat::IsSpecialKeyPressed(kSpecialKey_Right)) cam_y_rot = -cam_sensitivity;
+      if (esat::IsSpecialKeyPressed(kSpecialKey_Left)) cam_y_rot = cam_sensitivity;
 
       cam_dir = mat_mul(Mat4::rotationY(cam_y_rot * mouse_sensitivity / 2 / PI), cam_dir);
       cam_dir = mat_mul(Mat4::rotationX(cam_x_rot * mouse_sensitivity / 2 / PI), cam_dir);
 
-      float mouse_x_delta = (esat::MousePositionX() - mouse_x);
-      float mouse_y_delta = (esat::MousePositionY() - mouse_y);
+      Vec4 cam_right = cross_product({0, 1, 0, 0}, cam_dir);
+      Vec4 cam_up = cross_product(cam_dir, cam_right);
 
-      // Mouse camera controls
-      // cam_dir = mat_mul(Mat4::rotationY(-mouse_x_delta * mouse_sensitivity / 2 / PI), cam_dir);
-      // cam_dir = mat_mul(Mat4::rotationX(mouse_y_delta * mouse_sensitivity / 2 / PI), cam_dir);
-      // mouse_x = MousePositionX();
-      // mouse_y = MousePositionY();
-
-      // float mouse_x_rel = (mouse_x - 400) / 800.f;
-      // float mouse_y_rel = (mouse_y - 300) / 600.f;
+      if (esat::IsKeyPressed('W')) cam_pos += (cam_dir.normalized() * speed);
+      if (esat::IsKeyPressed('S')) cam_pos -= (cam_dir.normalized() * speed);
+      if (esat::IsKeyPressed('D')) cam_pos += (cam_right.normalized() * speed);
+      if (esat::IsKeyPressed('A')) cam_pos -= (cam_right.normalized() * speed);
 
       //* Render
       Vec4 light_dir = {1, -1, -1, 0};
       light_dir = light_dir.normalized();
 
-      float z = 20;
-
       // Mat4 model = generate_transform(
       //     {z * mouse_x_rel, z * mouse_y_rel, z}, {5, 5, 5}, {0, (float)(PI + Time() / 500), PI});
-      Mat4 model = generate_transform({0, 0, z}, {5, 5, 5}, {x_rot, y_rot, 0});
+      Mat4 model = generate_transform({0, 0, 5}, {1, 1, 1}, {x_rot, y_rot, 0});
       Mat4 view = get_view_matrix(cam_dir, cam_pos);
       Mat4 persp = Mat4::perspective(fov, aspect, zNear, zFar);
-      Mat4 viewport = generate_transform(
-          {window_dims.x() / 2, window_dims.y() / 2, 0}, {zoom, zoom, 1}, {0, 0, 0});
-
-      Mat4 tr = Mat4::identity();
-      tr = mat_mul(model, tr);
-      tr = mat_mul(view, tr);
-      tr = mat_mul(persp, tr);
-      tr = mat_mul(viewport, tr);
+      Mat4 viewport = generate_transform({window_dims.x() / 2, window_dims.y() / 2, 0},
+                                         {window_dims.x() / 2, window_dims.y() / 2, 1},
+                                         {0, 0, 0});
 
       DrawBegin();
       DrawClear(0, 0, 0);
-
       // draw_mesh_edges(mesh, tr);
-      draw_mesh_faces(mesh, tr, model, light_dir, cam_pos);
+      // render_mesh_flat(mesh, tr, model, light_dir, cam_pos);
+      render_mesh_flat(mesh, model, view, persp, viewport, light_dir, cam_pos);
 
       DrawEnd();
 

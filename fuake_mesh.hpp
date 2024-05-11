@@ -39,7 +39,7 @@ void triangulate(Mesh &mesh) {
 
       switch (mesh.num_vertices[i]) {
       case 3:
-         new_num_vertices.push_back(mesh.num_vertices[i]);
+         new_num_vertices.push_back(3);
          for (int i = 0; i < 3; i++) new_indices.push_back(mesh.indices[offset + i]);
          break;
       case 4:
@@ -63,6 +63,7 @@ void triangulate(Mesh &mesh) {
       default:
          std::cout << "Wrong number of vertices " << mesh.num_vertices[i]
                    << ". Only tris and quads are currently supported.";
+         return;
       }
       offset += mesh.num_vertices[i];
    }

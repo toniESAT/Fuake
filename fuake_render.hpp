@@ -70,51 +70,73 @@ void draw_mesh_edges(const Mesh &mesh, const Mat4 tr) {
    }
 }
 
-void draw_mesh_faces(const Mesh &mesh, const Mat4 tr, const Mat4 model, Vec4 light_dir, Vec4 cam_pos) {
+void render_mesh_flat(const Mesh &mesh, const Mat4 &model, const Mat4 &view, const Mat4 &persp,
+                      const Mat4 &viewport, const Vec4 &light_dir, Vec4 &cam_pos,
+                      bool show_normals = false) {
 
+   // Get partial transformation matrices
+   Mat4 obj2view = mat_mul(view, model);
+   Mat4 view2screen = mat_mul(viewport, persp);
+
+   // Faces to camera space
    vector<Vec4> faces = generate_faces(mesh);
+   faces = obj2view.transform_points(faces);
 
-   vector<Vec4> transformed_faces = tr.transform_points(faces);
-   for (auto &pt : transformed_faces) pt = pt.normalized_homogeneous();
-
-   // Get normals an polygon centers
+   // Get cam space normals culling and lighting
    vector<Vec4> normals = get_mesh_face_normals(mesh, faces, true);
-   normals = model.transform_points(normals);
-   for (auto &pt : normals) pt = pt.normalized_homogeneous();
+   // Light to camera space to match cam space normals
+   Vec4 tr_light = mat_mul(view, light_dir);
 
+   // Get face centers in cam space for z-ordering
    vector<Vec4> centers = get_mesh_face_centers(mesh, faces);
-   vector<Vec4> tr_centers = tr.transform_points(centers);
-   for (auto &pt : tr_centers) pt = pt.normalized_homogeneous();
 
-   centers = model.transform_points(centers);
+   // Get screen-space centers if drawing normals
+   vector<Vec4> tr_centers;
+   if (show_normals) tr_centers = view2screen.transform_points(centers);
 
-   // Get centers z
-   vector<float> centers_z(centers.size());
-   for (int i = 0; i < centers.size(); i++) centers_z[i] = centers[i].z();
+   // Transform faces to screen space
+   faces = view2screen.transform_points(faces);
+   for (auto &pt : faces) pt *= (1.f / pt.w());
 
-   for (auto &pt : centers) pt = pt.normalized_homogeneous();
+   // Z-ordering
+   vector<size_t> indices(centers.size());
+   for (size_t i = 0; i < centers.size(); i++) indices[i] = i;
+   std::sort(indices.begin(), indices.end(), [&centers](int left, int right) {
+      return centers[left].z() > centers[right].z();
+   });
 
+   // Calculate vertex position offsets to quickly index into them
    auto &num_vertices = mesh.num_vertices;
-
-   vector<size_t> sort_indices = argsort(centers_z, true);
-   vector<size_t> offsets(num_vertices.size());
-   offsets[0] = 0;
+   vector<size_t> offsets(num_vertices.size(), 0);
    for (size_t i = 1; i < num_vertices.size(); i++)
       offsets[i] = offsets[i - 1] + num_vertices[i - 1];
 
-   for (auto i : sort_indices) {
+   // Get viewport resolution for culling (assuming no prior frustum culling)
+   Vec4 clip = mat_mul(viewport, Vec4{1, 1, 1, 1});
+   float max_x = clip.x();
+   float max_y = clip.y();
+
+   for (auto i : indices) {
 
       // Backface culling
-      if (dot_product((centers[i] - cam_pos).normalized(), normals[i]) > 0) continue;
+      // if (dot_product((centers[i]).normalized_homogeneous(), normals[i]) > 0) continue;
 
       size_t offset = offsets[i];
       uint8_t n = num_vertices[i];
 
+      // Viewport culling: Cull for x,y E [-1,1] and z E [0,1]
       vector<Vec2> points(n);
-      for (int j = 0; j < n; j++)
-         points[j] = {transformed_faces[offset + j].x(), transformed_faces[offset + j].y()};
+      bool cull = true;
+      for (int j = 0; j < n; j++) {
+         Vec4 pt = faces[offset + j];
+         points[j] = {pt.x(), pt.y()};
+         // If all points out, cull
+         cull &= pt.x() < 0 || pt.x() > max_x || pt.y() < 0 || pt.y() > max_y || pt.z() < 0 ||
+                 pt.z() > 1;
+      }
+      if (cull) continue;
 
-      float b = dot_product(light_dir, normals[i]);
+      float b = dot_product(tr_light, normals[i]);
       uint8_t diffuse = 100;
       uint8_t directional = 255 - diffuse;
       b = max(0, b) * directional + diffuse;
@@ -123,11 +145,13 @@ void draw_mesh_faces(const Mesh &mesh, const Mat4 tr, const Mat4 model, Vec4 lig
       esat::DrawSetStrokeColor(b, b, b);
       esat::DrawSolidPath((float *)points.data(), points.size(), true);
 
-      esat::DrawSetStrokeColor(255, 0, 0);
-      esat::DrawLine(tr_centers[i].x(),
-                     tr_centers[i].y(),
-                     (tr_centers[i] + normals[i] * 15).x(),
-                     (tr_centers[i] + normals[i] * 15).y());
+      if (show_normals) {
+         esat::DrawSetStrokeColor(255, 0, 0);
+         esat::DrawLine(tr_centers[i].x(),
+                        tr_centers[i].y(),
+                        (tr_centers[i] + normals[i] * 15).x(),
+                        (tr_centers[i] + normals[i] * 15).y());
+      }
    }
 }
 
