@@ -108,8 +108,8 @@ int esat::main(int argc, char **argv) {
 
       DrawBegin();
       DrawClear(0, 0, 0);
+      
       // draw_mesh_edges(mesh, tr);
-      // render_mesh_flat(mesh, tr, model, light_dir, cam_pos);
       render_mesh_flat(mesh, model, view, persp, viewport, light_dir, cam_pos);
 
       DrawEnd();

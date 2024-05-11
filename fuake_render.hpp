@@ -82,7 +82,7 @@ void render_mesh_flat(const Mesh &mesh, const Mat4 &model, const Mat4 &view, con
    vector<Vec4> faces = generate_faces(mesh);
    faces = obj2view.transform_points(faces);
 
-   // Get cam space normals culling and lighting
+   // Get cam space normals for backface culling and lighting
    vector<Vec4> normals = get_mesh_face_normals(mesh, faces, true);
    // Light to camera space to match cam space normals
    Vec4 tr_light = mat_mul(view, light_dir);
@@ -118,8 +118,9 @@ void render_mesh_flat(const Mesh &mesh, const Mat4 &model, const Mat4 &view, con
 
    for (auto i : indices) {
 
+      // TODO: this can be done in screen space
       // Backface culling
-      // if (dot_product((centers[i]).normalized_homogeneous(), normals[i]) > 0) continue;
+      if (dot_product(centers[i], normals[i]) > 0) continue;
 
       size_t offset = offsets[i];
       uint8_t n = num_vertices[i];
@@ -130,9 +131,9 @@ void render_mesh_flat(const Mesh &mesh, const Mat4 &model, const Mat4 &view, con
       for (int j = 0; j < n; j++) {
          Vec4 pt = faces[offset + j];
          points[j] = {pt.x(), pt.y()};
-         // If all points out, cull
-         cull &= pt.x() < 0 || pt.x() > max_x || pt.y() < 0 || pt.y() > max_y || pt.z() < 0 ||
-                 pt.z() > 1;
+         // If all vertices out, cull
+         cull &= (pt.x() < 0 || pt.x() > max_x || pt.y() < 0 || pt.y() > max_y || pt.z() < 0 ||
+                  pt.z() > 1);
       }
       if (cull) continue;
 
@@ -157,8 +158,8 @@ void render_mesh_flat(const Mesh &mesh, const Mat4 &model, const Mat4 &view, con
 
 Mat4 get_view_matrix(Vec4 cam_dir, Vec4 cam_pos) {
    Mat4 rotation;
-   Vec4 cam_right = cross_product({0, 1, 0, 0}, cam_dir);
-   Vec4 cam_up = cross_product(cam_dir, cam_right);
+   Vec4 cam_right = cross_product({0, 1, 0, 0}, cam_dir).normalized();
+   Vec4 cam_up = cross_product(cam_dir, cam_right).normalized();
    rotation.set_row(0, cam_right);
    rotation.set_row(1, cam_up);
    rotation.set_row(2, cam_dir);
