@@ -10,7 +10,6 @@
                 "/EHs",
                 "/GR-",
                 "/MD",
-                "/DDEBUG",
                 "/nologo",
                 "${file}",
                 "/I",
@@ -19,14 +18,13 @@
                 "AMath_Lib/include",
                 "/I",
                 "ESAT_rev248/include",
-                "ESAT_rev248/bin/win_x64/ESAT.lib",
-                // "ESAT_rev248/bin/ESAT.lib",
+                // "ESAT_rev248/bin/win_x64/ESAT.lib",
+                "ESAT_rev248/bin/ESAT.lib",
                 "opengl32.lib",
                 "user32.lib",
                 "gdi32.lib",
                 "shell32.lib",
-                "Ws2_32.lib",
-                "Xinput9_1_0.lib"
+                "Ws2_32.lib"
             ],
             "options": {
                 "cwd": "${fileDirname}"

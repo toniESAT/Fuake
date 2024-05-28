@@ -444,3 +444,7 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+
+# Upload 3D obj assets
+!assets/**/*.obj
