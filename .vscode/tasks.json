@@ -1,0 +1,44 @@
+{
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "C/C++: clang.exe build active file",
+            "command": "cl.exe",
+            "args": [
+                "/std:c++17",
+                "/Zi",
+                "/EHs",
+                "/GR-",
+                "/MD",
+                "/DDEBUG",
+                "/nologo",
+                "${file}",
+                "/I",
+                "AMath_Lib/",
+                "/I",
+                "AMath_Lib/include",
+                "/I",
+                "ESAT_rev248/include",
+                "ESAT_rev248/bin/win_x64/ESAT.lib",
+                // "ESAT_rev248/bin/ESAT.lib",
+                "opengl32.lib",
+                "user32.lib",
+                "gdi32.lib",
+                "shell32.lib",
+                "Ws2_32.lib",
+                "Xinput9_1_0.lib"
+            ],
+            "options": {
+                "cwd": "${fileDirname}"
+            },
+            "problemMatcher": [
+                "$msCompile"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        }
+    ],
+    "version": "2.0.0"
+}

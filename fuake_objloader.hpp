@@ -21,6 +21,7 @@ enum ObjToken {
    kToken_ObjectName,     // o
    kToken_GroupName,      // g
    kToken_SmoothingGroup, // s
+   kToken_UseMtl,         // usemtl
 };
 
 ObjToken get_token(const string token) {
@@ -31,10 +32,11 @@ ObjToken get_token(const string token) {
    if (token == "f") return kToken_Face;
    if (token == "g") return kToken_GroupName;
    if (token == "s") return kToken_SmoothingGroup;
+   if (token == "usemtl") return kToken_UseMtl;
    return kToken_Unknown;
 }
 
-Mesh read_obj(const string filepath) {
+Mesh read_obj(const string filepath, bool exchange_axes = true) {
 
    Mesh mesh;
    string buf;
@@ -46,7 +48,8 @@ Mesh read_obj(const string filepath) {
 
       // Check token
       token = get_token(buf);
-      
+      Vec3 vertex;
+
       switch (token) {
       case kToken_GroupName:
       case kToken_SmoothingGroup:
@@ -55,8 +58,15 @@ Mesh read_obj(const string filepath) {
       case kToken_Vertex:
          for (int i = 0; i < 3; i++) {
             fs >> buf;
-            mesh.vertices.push_back(stof(buf));
+            vertex[i] = stof(buf);
          }
+         if (exchange_axes) {
+            float y = vertex.y();
+            vertex.y() = -vertex.z();
+            vertex.z() = y;
+            // vertex.x() = -vertex.x();
+         }
+         mesh.vertices.push_back(vertex);
          break;
       case kToken_Face:
          uint8_t num_vert = 0;
@@ -74,6 +84,8 @@ Mesh read_obj(const string filepath) {
          // case kToken_Texture: break;
       }
    }
+
+   mesh.calculate_offsets();
    return mesh;
 }
 
